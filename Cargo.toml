@@ -12,8 +12,10 @@ tempfile = "3"
 walkdir = "2"
 rayon = "1"
 # Downloads a static ffmpeg/ffprobe at runtime if system ffmpeg is missing
-
 ffmpeg-sidecar = "2.1.0"
+# Structured logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 
 

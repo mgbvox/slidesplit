@@ -1,32 +1,13 @@
-use slidesplit::{cluster_frames, merge_short_clusters};
-use img_hash::{ImageHash, HashBytes};
+use slidesplit::{cluster_frames, merge_short_clusters, FrameEntry};
+use img_hash::ImageHash;
 use std::path::PathBuf;
 
-#[derive(Clone)]
-struct DummyFrame {
-    hash: ImageHash,
-}
 fn h64(u: u64) -> ImageHash {
-    // Construct a synthetic 64-bit DCT hash from an integer
-    ImageHash::new(HashBytes::from(vec![
-        (u >> 56) as u8,
-        (u >> 48) as u8,
-        (u >> 40) as u8,
-        (u >> 32) as u8,
-        (u >> 24) as u8,
-        (u >> 16) as u8,
-        (u >> 8) as u8,
-        u as u8,
-    ]), 8, 8)
+    // Construct a synthetic 64-bit hash from an integer (big-endian order)
+    let bytes = u.to_be_bytes();
+    ImageHash::from_bytes(&bytes).unwrap()
 }
 
-// Mirror the real struct shape the functions expect:
-#[derive(Clone)]
-struct FrameEntry {
-    idx: usize,
-    path: PathBuf,
-    hash: ImageHash,
-}
 
 #[test]
 fn clusters_split_when_distance_exceeds_threshold() {
