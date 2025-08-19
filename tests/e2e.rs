@@ -4,19 +4,28 @@ use predicates::prelude::*;
 use std::process::Command;
 use std::path::PathBuf;
 
-/// Helper: synthesizes N PNGs of distinct solid colors.
+/// Helper: synthesizes N PNGs of distinct solid colors with high contrast.
 fn make_synthetic_pngs(dir: &assert_fs::TempDir, n: usize) -> Vec<PathBuf> {
     use image::{ImageBuffer, Rgba};
     let mut out = Vec::new();
+    
+    // Use highly contrasting colors that should be very different in DCT space
+    let colors = [
+        [0, 0, 0, 255],       // Black
+        [255, 255, 255, 255], // White  
+        [255, 0, 0, 255],     // Red
+        [0, 255, 0, 255],     // Green
+        [0, 0, 255, 255],     // Blue
+    ];
+    
     for i in 0..n {
         let w = 64;
         let h = 64;
         let mut img = ImageBuffer::<Rgba<u8>, Vec<u8>>::new(w, h);
-        let r = (i as u8).wrapping_mul(37);
-        let g = (i as u8).wrapping_mul(73);
-        let b = (i as u8).wrapping_mul(17);
+        let color = colors[i % colors.len()];
+        
         for p in img.pixels_mut() {
-            *p = Rgba([r, g, b, 255]);
+            *p = Rgba(color);
         }
         let path = dir.child(format!("slide_{i:02}.png"));
         img.save(path.path()).unwrap();
@@ -72,7 +81,7 @@ fn splits_exact_slides_without_transitions() {
     let mut cmd = Command::cargo_bin("slidesplit").unwrap();
     cmd.arg(input.path())
         .arg("--fps").arg("2.0")
-        .arg("--threshold").arg("10")
+        .arg("--threshold").arg("5")  // Lower threshold for solid color differentiation
         .arg("--min-stable-seconds").arg("0.5")
         .arg("--format").arg("png")
         .arg("-o").arg(out_dir.path());

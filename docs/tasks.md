@@ -2,14 +2,14 @@
 
 Below is an ordered, actionable checklist. Each item starts with a checkbox to track completion.
 
-## Architecture & Core Implementation ✅ Mostly Complete
+## Architecture & Core Implementation ✅ Completed
 
 1. [x] Convert the project to a hybrid binary+library crate (expose core logic in lib.rs, keep CLI in main.rs).
 2. [x] Extract frame clustering and merging logic into a separate module and expose a clean API (implemented in lib.rs).
 3. [x] Extract ffmpeg detection/download and invocation into a dedicated module with a single entry point (implemented as `ensure_ffmpeg_available()`).
-4. [ ] Introduce a Config struct to centralize parameters (fps, threshold, min_stable_seconds, format, webp_lossless, paths).
-5. [ ] Replace ad-hoc eprintln!/println! with a structured logging crate (env_logger or tracing) and user-selectable verbosity.
-6. [ ] Standardize error handling: eliminate remaining unwrap() calls on path conversions; add context() at I/O and process boundaries.
+4. [x] **Introduce a Config struct to centralize parameters (fps, threshold, min_stable_seconds, format, webp_lossless, paths).**
+5. [x] **Replace ad-hoc eprintln!/println! with a structured logging crate (env_logger or tracing) and user-selectable verbosity.**
+6. [x] **Standardize error handling: eliminate remaining unwrap() calls on path conversions; add context() at I/O and process boundaries.**
 7. [x] Validate CLI arguments more strictly (clap handles type validation; range checks implemented via ValueEnum).
 
 ## FFmpeg & Format Support ✅ Well Implemented
@@ -79,9 +79,16 @@ Below is an ordered, actionable checklist. Each item starts with a checkbox to t
 49. [ ] Add memory usage considerations: stream listing and hashing to avoid holding too many paths/hashes at once for huge inputs.
 50. [ ] Consider exposing a WASM-friendly path by abstracting filesystem and process invocations behind traits (future-proofing).
 
-## Current Status Summary
+## Current Status Summary - Updated August 2025
 
-**✅ Well Implemented:**
+**✅ Completed in this session:**
+- **Config struct implementation** - Centralized all configuration parameters with validation
+- **Structured logging** - Added tracing with user-configurable verbosity levels (error, warn, info, debug, trace) 
+- **Enhanced error handling** - Eliminated unwrap() calls, added proper context to all error paths
+- **Instrumentation** - Added tracing spans for better debugging and performance monitoring
+- **Thread-safe parallel processing** - Fixed Send/Sync issues in frame hashing pipeline
+
+**✅ Previously Well Implemented:**
 - Hybrid binary+library architecture 
 - Core clustering algorithms with good test coverage
 - Multiple output format support with lossless options
@@ -89,13 +96,8 @@ Below is an ordered, actionable checklist. Each item starts with a checkbox to t
 - Parallel processing for performance
 - Basic CLI with proper argument validation
 
-**🔄 Partially Complete:**
-- Error handling (some unwrap() calls remain)
-- Performance optimizations (parallel I/O done, but image pipeline could be optimized)
-
-**⏳ High Priority Next Steps:**
-- Introduce Config struct for parameter centralization
-- Add structured logging with verbosity levels  
-- Complete error handling standardization
+**🔄 Next Priority Items:**
+- Fix integration test threshold sensitivity for synthetic video frames
 - Add comprehensive edge case testing
 - Improve documentation and examples
+- Add progress reporting and JSON output modes

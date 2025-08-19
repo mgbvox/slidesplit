@@ -1,7 +1,8 @@
 use img_hash::ImageHash;
 use std::path::PathBuf;
 
-#[derive(Clone)]
+/// Represents a single frame with its index, file path, and perceptual hash
+#[derive(Clone, Debug)]
 pub struct FrameEntry {
     pub idx: usize,
     pub path: PathBuf,
@@ -9,6 +10,10 @@ pub struct FrameEntry {
 }
 
 /// Initial clustering: anchor strategy
+/// 
+/// Groups frames using an anchor-based approach where each cluster starts with
+/// an anchor frame, and subsequent frames are added to the cluster if their
+/// hash distance to the anchor is within the threshold.
 pub fn cluster_frames(frames: &[FrameEntry], threshold: u32) -> Vec<Vec<usize>> {
     let mut clusters: Vec<Vec<usize>> = Vec::new();
     if frames.is_empty() {
@@ -32,6 +37,10 @@ pub fn cluster_frames(frames: &[FrameEntry], threshold: u32) -> Vec<Vec<usize>> 
 }
 
 /// Merge clusters shorter than min_stable_seconds into neighbors to avoid counting transition blobs.
+///
+/// This function performs two types of merging:
+/// 1. Merges clusters that are too short (less than min_stable_seconds) into their neighbors
+/// 2. Merges "micro-splits" where adjacent clusters have very similar boundary frames
 pub fn merge_short_clusters(
     clusters: &mut Vec<Vec<usize>>,
     frames: &[FrameEntry],
@@ -41,6 +50,7 @@ pub fn merge_short_clusters(
 ) {
     let min_len = (min_stable_seconds * fps).ceil() as usize;
 
+    // First pass: merge clusters that are too short
     loop {
         let mut changed = false;
         let mut i = 0;
@@ -53,6 +63,7 @@ pub fn merge_short_clusters(
                 } else if i == clusters.len() - 1 {
                     Some(i - 1)
                 } else {
+                    // Choose the neighbor that's most similar
                     let cur_first = &frames[clusters[i][0]].hash;
                     let cur_last = &frames[*clusters[i].last().unwrap()].hash;
 
@@ -88,7 +99,7 @@ pub fn merge_short_clusters(
         }
     }
 
-    // Merge micro-splits
+    // Second pass: merge micro-splits (adjacent clusters with very similar boundaries)
     let mut i = 0;
     while i + 1 < clusters.len() {
         let a_last = frames[*clusters[i].last().unwrap()].hash.clone();
