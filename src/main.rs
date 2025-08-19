@@ -5,13 +5,11 @@ use rayon::prelude::*;
 use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 use tempfile::TempDir;
 use walkdir::WalkDir;
 
 // near the top
-#[cfg(test)]
-pub(crate) use crate::{cluster_frames, merge_short_clusters};
 
 /// Output image formats (note: jpg/jpeg are NOT lossless).
 #[derive(Clone, Copy, Debug, ValueEnum)]
@@ -100,8 +98,10 @@ fn main() -> Result<()> {
         .out_dir
         .clone()
         .unwrap_or_else(|| default_out_dir(&args.input));
+    let dir_message = format!("Creating output dir {}", out_dir.display());
+    println!("Creating output directory: {}", dir_message);
     fs::create_dir_all(&out_dir)
-        .with_context(|| format!("Creating output dir {}", out_dir.display()))?;
+        .with_context(|| dir_message)?;
 
     let frames_dir = TempDir::new().context("Creating temp dir for frames")?;
 
@@ -172,7 +172,6 @@ fn main() -> Result<()> {
             .max_depth(1)
             .into_iter()
             .filter_map(|e| e.ok())
-            .par_bridge()
         {
             let p = entry.path().to_path_buf();
             if p.extension().and_then(OsStr::to_str).is_some() {
@@ -212,11 +211,27 @@ fn ensure_ffmpeg_available() -> Result<PathBuf> {
         .map(|s| s.success())
         .unwrap_or(false);
     if ok {
-        Ok(PathBuf::from("ffmpeg"))
+        let ffmpeg_dir = PathBuf::from("ffmpeg");
+        println!("Using ffmpeg from {}", ffmpeg_dir.display());
+        Ok(ffmpeg_dir)
     } else {
-        ffmpeg_sidecar::download::auto_download()?;
-        ffmpeg_sidecar::paths::sidecar_dir()
+        let target_dir = ffmpeg_sidecar::paths::sidecar_dir()?;
+        println!("ffmpeg not located; downloading ffmpeg to: {}", target_dir.display());
+        let _ = ffmpeg_sidecar::download::auto_download();
+        Ok(target_dir)
+
     }
+}
+
+fn run_and_stream(cmd: &mut Command) -> Result<std::process::ExitStatus> {
+    // Inherit parent's stdout/stderr so the child output is streamed directly
+    // to the console in real time without buffering here.
+    cmd.stdout(Stdio::inherit());
+    cmd.stderr(Stdio::inherit());
+
+    let mut child = cmd.spawn().context("Failed to spawn command")?;
+    let status = child.wait().context("Failed waiting for command")?;
+    Ok(status)
 }
 
 fn extract_frames(
@@ -227,6 +242,8 @@ fn extract_frames(
     fmt: OutFormat,
     webp_lossless: bool,
 ) -> Result<()> {
+
+    println!("Extracting frames to {}", outdir.display());
     fs::create_dir_all(outdir)?;
 
     let pattern = outdir.join(format!("frame_%06d.{}", fmt.ext()));
@@ -270,7 +287,8 @@ fn extract_frames(
 
     cmd.arg(pattern.to_str().unwrap());
 
-    let status = cmd.status().context("Running ffmpeg to extract frames")?;
+    println!("Running ffmpeg to extract frames");
+    let status = run_and_stream(&mut cmd)?;
     if !status.success() {
         return Err(anyhow!("ffmpeg failed to extract frames"));
     }
@@ -303,11 +321,16 @@ fn load_frame_hashes(dir: &Path) -> Result<Vec<FrameEntry>> {
 
     // Parallel load + hash
     let out: Vec<FrameEntry> = entries
-        .par_iter()
+        .iter()
         .map(|(idx, path)| -> Result<FrameEntry> {
-            let img = image::open(path)
+            let dynimg = image::open(path)
                 .with_context(|| format!("Opening extracted frame {}", path.display()))?;
-            let hash = hasher.hash_image(&img);
+            let rgba = dynimg.to_rgba8();
+            let (w, h) = rgba.dimensions();
+            let raw = rgba.into_raw();
+            let buf = img_hash::image::ImageBuffer::<img_hash::image::Rgba<u8>, Vec<u8>>::from_raw(w, h, raw)
+                .ok_or_else(|| anyhow!("Failed to build image buffer for hashing"))?;
+            let hash = hasher.hash_image(&buf);
             Ok(FrameEntry {
                 idx: *idx,
                 path: path.clone(),
